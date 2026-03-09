@@ -1,0 +1,186 @@
+use anchor_lang::prelude::*;
+
+declare_id!("9jKW1NQo5SdebXSaKmgoJbocQRWWrJkRUuEqGiphsN8o");
+
+
+#[program]
+pub mod biblioteca_solana {
+    use super::*;
+
+    /// Inicializa la cuenta Biblioteca
+    pub fn inicializar_biblioteca(
+        ctx: Context<InicializarBiblioteca>,
+        nombre: String,
+    ) -> Result<()> {
+        let biblioteca = &mut ctx.accounts.biblioteca;
+        biblioteca.nombre = nombre;
+        biblioteca.owner  = ctx.accounts.owner.key();
+        biblioteca.libros = Vec::new();
+        Ok(())
+    }
+
+    
+    pub fn agregar_libro(
+        ctx: Context<ModificarBiblioteca>,
+        titulo:  String,
+        autor:   String,
+        anio:    u16,
+        isbn:    String,
+        genero:  String,
+    ) -> Result<()> {
+        let biblioteca = &mut ctx.accounts.biblioteca;
+
+        require!(
+            biblioteca.owner == ctx.accounts.owner.key(),
+            BibliotecaError::NoAutorizado
+        );
+        require!(
+            biblioteca.libros.len() < 100,
+            BibliotecaError::CapacidadMaxima
+        );
+        require!(titulo.len()  <= 100, BibliotecaError::TituloMuyLargo);
+        require!(autor.len()   <= 100, BibliotecaError::AutorMuyLargo);
+        require!(isbn.len()    <= 20,  BibliotecaError::IsbnMuyLargo);
+        require!(genero.len()  <= 50,  BibliotecaError::GeneroMuyLargo);
+
+        let libro = Libro {
+            titulo,
+            autor,
+            anio,
+            isbn,
+            genero,
+            disponible: true,
+        };
+
+        biblioteca.libros.push(libro);
+        Ok(())
+    }
+
+    
+    pub fn eliminar_libro(
+        ctx: Context<ModificarBiblioteca>,
+        indice: u8,
+    ) -> Result<()> {
+        let biblioteca = &mut ctx.accounts.biblioteca;
+
+        require!(
+            biblioteca.owner == ctx.accounts.owner.key(),
+            BibliotecaError::NoAutorizado
+        );
+        require!(
+            (indice as usize) < biblioteca.libros.len(),
+            BibliotecaError::IndiceInvalido
+        );
+
+        biblioteca.libros.remove(indice as usize);
+        Ok(())
+    }
+
+    
+    pub fn cambiar_disponibilidad(
+        ctx: Context<ModificarBiblioteca>,
+        indice:      u8,
+        disponible:  bool,
+    ) -> Result<()> {
+        let biblioteca = &mut ctx.accounts.biblioteca;
+
+        require!(
+            biblioteca.owner == ctx.accounts.owner.key(),
+            BibliotecaError::NoAutorizado
+        );
+        require!(
+            (indice as usize) < biblioteca.libros.len(),
+            BibliotecaError::IndiceInvalido
+        );
+
+        biblioteca.libros[indice as usize].disponible = disponible;
+        Ok(())
+    }
+}
+
+
+#[account]
+pub struct Biblioteca {
+    pub nombre: String,
+    pub owner:  Pubkey,
+    pub libros: Vec<Libro>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct Libro {
+    pub titulo:     String,
+    pub autor:      String,
+    pub anio:       u16,
+    pub isbn:       String,
+    pub genero:     String,
+    pub disponible: bool,
+}
+
+
+impl Biblioteca {
+    pub const ESPACIO: usize =
+        8                         // discriminador Anchor
+        + 4 + 64                  // nombre
+        + 32                      // owner 
+        + 4                       // longitud del Vec
+        + (Libro::ESPACIO * 100); // capacidad para 100 libros
+}
+
+impl Libro {
+    pub const ESPACIO: usize =
+        4 + 100  // titulo
+        + 4 + 100  // autor
+        + 2        // anio (u16)
+        + 4 + 20   // isbn
+        + 4 + 50   // genero
+        + 1;       // disponible 
+}
+
+
+#[derive(Accounts)]
+pub struct InicializarBiblioteca<'info> {
+    #[account(
+        init,
+        payer  = owner,
+        space  = Biblioteca::ESPACIO
+    )]
+    pub biblioteca: Account<'info, Biblioteca>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ModificarBiblioteca<'info> {
+    #[account(mut)]
+    pub biblioteca: Account<'info, Biblioteca>,
+
+    pub owner: Signer<'info>,
+}
+
+
+#[error_code]
+pub enum BibliotecaError {
+    #[msg("Solo el owner puede modificar esta biblioteca.")]
+    NoAutorizado,
+
+    #[msg("Se alcanzó la capacidad máxima de 100 libros.")]
+    CapacidadMaxima,
+
+    #[msg("El índice proporcionado no es válido.")]
+    IndiceInvalido,
+
+    #[msg("El título no puede superar 100 caracteres.")]
+    TituloMuyLargo,
+
+    #[msg("El autor no puede superar 100 caracteres.")]
+    AutorMuyLargo,
+
+    #[msg("El ISBN no puede superar 20 caracteres.")]
+    IsbnMuyLargo,
+
+    #[msg("El género no puede superar 50 caracteres.")]
+    GeneroMuyLargo,
+}
