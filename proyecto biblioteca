@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 declare_id!("9jKW1NQo5SdebXSaKmgoJbocQRWWrJkRUuEqGiphsN8o");
 
-
 #[program]
 pub mod biblioteca_solana {
     use super::*;
@@ -19,7 +18,6 @@ pub mod biblioteca_solana {
         Ok(())
     }
 
-    
     pub fn agregar_libro(
         ctx: Context<ModificarBiblioteca>,
         titulo:  String,
@@ -56,7 +54,6 @@ pub mod biblioteca_solana {
         Ok(())
     }
 
-    
     pub fn eliminar_libro(
         ctx: Context<ModificarBiblioteca>,
         indice: u8,
@@ -76,11 +73,10 @@ pub mod biblioteca_solana {
         Ok(())
     }
 
-    
     pub fn cambiar_disponibilidad(
         ctx: Context<ModificarBiblioteca>,
-        indice:      u8,
-        disponible:  bool,
+        indice: u8,
+        disponible: bool,
     ) -> Result<()> {
         let biblioteca = &mut ctx.accounts.biblioteca;
 
@@ -97,7 +93,6 @@ pub mod biblioteca_solana {
         Ok(())
     }
 }
-
 
 #[account]
 pub struct Biblioteca {
@@ -116,33 +111,33 @@ pub struct Libro {
     pub disponible: bool,
 }
 
-
 impl Biblioteca {
     pub const ESPACIO: usize =
-        8                         // discriminador Anchor
-        + 4 + 64                  // nombre
-        + 32                      // owner 
-        + 4                       // longitud del Vec
-        + (Libro::ESPACIO * 100); // capacidad para 100 libros
+        8
+        + 4 + 64
+        + 32
+        + 4
+        + (Libro::ESPACIO * 100);
 }
 
 impl Libro {
     pub const ESPACIO: usize =
-        4 + 100  // titulo
-        + 4 + 100  // autor
-        + 2        // anio (u16)
-        + 4 + 20   // isbn
-        + 4 + 50   // genero
-        + 1;       // disponible 
+        4 + 100
+        + 4 + 100
+        + 2
+        + 4 + 20
+        + 4 + 50
+        + 1;
 }
-
 
 #[derive(Accounts)]
 pub struct InicializarBiblioteca<'info> {
     #[account(
         init,
-        payer  = owner,
-        space  = Biblioteca::ESPACIO
+        payer = owner,
+        space = Biblioteca::ESPACIO,
+        seeds = [b"biblioteca", owner.key().as_ref()],
+        bump
     )]
     pub biblioteca: Account<'info, Biblioteca>,
 
@@ -154,12 +149,15 @@ pub struct InicializarBiblioteca<'info> {
 
 #[derive(Accounts)]
 pub struct ModificarBiblioteca<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"biblioteca", owner.key().as_ref()],
+        bump
+    )]
     pub biblioteca: Account<'info, Biblioteca>,
 
     pub owner: Signer<'info>,
 }
-
 
 #[error_code]
 pub enum BibliotecaError {
